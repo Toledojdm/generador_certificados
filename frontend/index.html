@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Certificados</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .container { max-width: 800px; }
+        .card { margin-bottom: 1.5rem; }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="text-center mb-5">
+            <h1>Generador de Certificados</h1>
+            <p class="lead">Una herramienta para crear certificados personalizados en lote.</p>
+        </div>
+
+        <!-- SECCIÓN 1: CREAR PLANTILLA -->
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5>Paso 1: Configurar Plantilla</h5>
+            </div>
+            <div class="card-body">
+                <form id="form-plantilla">
+                    <div class="mb-3">
+                        <label for="plantilla_png" class="form-label">Imagen de fondo (.png)</label>
+                        <input type="file" class="form-control" id="plantilla_png" name="plantilla_png" accept="image/png" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fuente_ttf" class="form-label">Archivo de fuente (.ttf, .otf)</label>
+                        <input type="file" class="form-control" id="fuente_ttf" name="fuente_ttf" accept=".ttf,.otf" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <label for="y_coord" class="form-label">Posición Vertical (Y)</label>
+                            <input type="number" class="form-control" id="y_coord" name="y_coord" placeholder="Ej: 500" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="tamano_fuente" class="form-label">Tamaño de Fuente</label>
+                            <input type="number" class="form-control" id="tamano_fuente" name="tamano_fuente" placeholder="Ej: 120" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3 w-100">Crear Plantilla</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 2: GENERAR CERTIFICADOS -->
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5>Paso 2: Generar Certificados</h5>
+            </div>
+            <div class="card-body">
+                <form id="form-generar">
+                    <div class="mb-3">
+                        <label for="plantilla_id" class="form-label">ID de la Plantilla</label>
+                        <input type="text" class="form-control" id="plantilla_id" name="plantilla_id" readonly required placeholder="Se generará en el Paso 1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nombres" class="form-label">Nombres (uno por línea)</label>
+                        <textarea class="form-control" id="nombres" name="nombres" rows="5" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">Generar y Descargar ZIP</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- SECCIÓN DE RESULTADOS -->
+        <div id="resultado" class="mt-4"></div>
+
+        <footer class="text-center mt-5 mb-4 text-muted">
+            <p>&copy; 2025 Generador de Certificados</p>
+        </footer>
+    </div>
+
+    <script>
+        const formPlantilla = document.getElementById('form-plantilla');
+        const formGenerar = document.getElementById('form-generar');
+        const resultadoDiv = document.getElementById('resultado');
+        const plantillaIdInput = document.getElementById('plantilla_id');
+
+        const mostrarMensaje = (mensaje, tipo = 'info') => {
+            const iconoSpinner = tipo === 'info' 
+                ? `<div class="spinner-border spinner-border-sm me-2" role="status"><span class="visually-hidden">Cargando...</span></div>` 
+                : '';
+            resultadoDiv.innerHTML = `<div class="alert alert-${tipo} d-flex align-items-center">${iconoSpinner}${mensaje}</div>`;
+        };
+
+        formPlantilla.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            mostrarMensaje('Creando plantilla, por favor espera...');
+            
+            const formData = new FormData(formPlantilla);
+
+            try {
+                const response = await fetch('/crear-plantilla-certificado', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.detail || 'Ocurrió un error');
+                
+                mostrarMensaje(`¡Plantilla creada! ID: <strong>${result.plantilla_id}</strong>`, 'success');
+                plantillaIdInput.value = result.plantilla_id;
+            } catch (error) {
+                mostrarMensaje(`Error: ${error.message}`, 'danger');
+            }
+        });
+
+        formGenerar.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            mostrarMensaje('Generando certificados, esto puede tardar un momento...');
+
+            const formData = new FormData();
+            formData.append('plantilla_id', plantillaIdInput.value);
+            
+            const nombres = document.getElementById('nombres').value.split('\n').filter(n => n.trim() !== '');
+            if (nombres.length === 0) {
+                mostrarMensaje('Error: Debes ingresar al menos un nombre.', 'danger');
+                return;
+            }
+            nombres.forEach(nombre => formData.append('nombres', nombre));
+
+            try {
+                const response = await fetch('/generar-certificados', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorResult = await response.json();
+                    throw new Error(errorResult.detail || 'Error al generar el archivo ZIP');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `certificados_${plantillaIdInput.value || 'lote'}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                
+                mostrarMensaje('¡Éxito! La descarga del ZIP ha comenzado.', 'success');
+            } catch (error) {
+                mostrarMensaje(`Error: ${error.message}`, 'danger');
+            }
+        });
+    </script>
+</body>
+</html>
