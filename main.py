@@ -20,6 +20,13 @@ from dotenv import load_dotenv
 # --- Configuración Inicial ---
 load_dotenv()
 
+email_host = os.getenv("EMAIL_HOST")
+email_port = os.getenv("EMAIL_PORT")
+email_user = os.getenv("EMAIL_USER")
+email_password = os.getenv("EMAIL_PASSWORD")
+
+print (email_host)
+
 app = FastAPI(
     title="API de Generación y Distribución de Certificados",
     description="Una solución completa para crear plantillas, gestionar participantes y enviar certificados."
